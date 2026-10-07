@@ -46,3 +46,44 @@ Configuración de entorno, persistencia de ./data, usuario no root y healthcheck
 Tests locales y en contenedor. No hay interfaz definitiva, datos simulados, scraping,
 llamadas OpenAI, procesamiento meteorológico, mapas o generación PowerPoint/reportes.
 La fase 02 requiere nueva instrucción tras revisión manual.
+
+
+## Fase 02 implementada
+
+Registro idempotente de las cuatro fuentes automáticas anteriores (sin GFS), conectores independientes
+httpx, contenido original sin análisis, checks históricos y snapshots SQLite/filesystem privados.
+SHA-256 y deduplicación por fuente; escritura atómica y referencia de DB. Metadatos desconocidos null.
+UTC aware internamente/API y America/Mexico_City en la tabla temporal de estados.
+Monitor automático con primer ciclo al iniciar e intervalo configurable (default 15 minutos),
+checks manuales globales/por clave y CLI explícita. Lock impide ciclos simultáneos; fallos aislados.
+
+ACTUALIZADA: último check exitoso produjo adquisición nueva respecto al snapshot anterior.
+VIGENTE: éxito sin cambio, o snapshot utilizable tras fallo con producto reciente según emisión o adquisición original.
+NO_DISPONIBLE_OBSOLETA: falta snapshot local utilizable o emisión/fetched_at supera umbral por fuente.
+SOURCE_MAX_AGE_HOURS define un umbral operativo inicial de 24h por fuente; no equivale a
+validez meteorológica. Umbrales exactos pendientes de refinamiento. Validity_start/end no se infieren.
+
+API: GET /api/sources, GET /api/sources/{key}, POST /api/sources/check,
+POST /api/sources/{key}/check y GET /api/sources/{key}/snapshots.
+Tabla temporal y botón de check manual. No rutas arbitrarias, no data como static.
+Fase 02 completada en implementación; validación real definitiva de las correcciones pendiente en WSL según DATA_SOURCES.md.
+FASE 03 no iniciada: siguen fuera SEMAR, OpenAI, análisis, GFS, mapas, riesgo, infografía y PPTX.
+
+
+### Correcciones de adquisición y estado
+
+Solo smn_pronostico_general es is_primary=true; tormentas y NHC son complementarias.
+La inicialización aplica esta clasificación también a fuentes existentes sin alterar enabled.
+El boletín General se delimita por marcadores de producto, sin dependencia exclusiva de contenedores
+HTML. Conservar su HTML original y descargar el PDF oficial etiquetado si está enlazado por HTTPS
+al host oficial. Nunca construir URLs ni contenido ausentes.
+
+Hash SMN basado en el producto, no en navbar/footer/banners: texto normalizado + PDF/recursos
+para General; conjunto ordenado de imágenes/productos y emisión confiable para Tormentas.
+wrapper_sha256 es auditoría. Emisión textual española + hora local Ciudad de México se convierte
+a UTC; fechas/horas ambiguas o contradictorias quedan null, sin inferir vigencia oficial.
+
+Edad: reference_time = detected_issue_time si existe, si no fetched_at del snapshot.
+Comprobaciones 200/304 no cambian ese origen temporal. Umbral configurable por clave y provisional.
+NHC, dedup, storage atómico, API/CLI, scheduler/locking y pruebas offline se conservan.
+La prueba final del acceso/HTML vigente debe repetirse en WSL. FASE 03 no iniciada.

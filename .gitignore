@@ -11,3 +11,6 @@ dist/
 /data/**/*
 !/data/**/
 !/data/**/.gitkeep
+
+# Override local de proxy/DNS/CA del entorno cloud, no portable.
+/docker-compose.override.yml

@@ -1,7 +1,7 @@
 # Reglas permanentes de desarrollo
 
 1. Trabajar incrementalmente y respetar el alcance de la fase solicitada.
-2. No implementar funciones fuera de la tarea actual. Fase actual: 01, bootstrap.
+2. No implementar funciones fuera de la tarea actual. Fase actual: 02, monitor de fuentes (implementación completada; revisión manual pendiente). FASE 03 no iniciada.
 3. No modificar la plantilla PPTX institucional salvo instrucciones expresas.
 4. Nunca inventar ni simular datos meteorológicos.
 5. Separar adquisición, extracción, análisis, validación, cartografía y presentación.
@@ -22,6 +22,6 @@
 20. En el PR explicar cambios, cómo probarlos y qué quedó expresamente fuera de alcance.
 
 Usar el checkout existente del entorno aislado; no crear worktrees salvo petición expresa.
-Trabajar en ramas codex/*, evitando main. No avanzar a fase 02 sin nueva instrucción.
+Trabajar en ramas codex/*, evitando main. No avanzar a fase 03 ni posteriores sin nueva instrucción. Tests unitarios sin Internet; comprobación real solo con CLI explícita o monitor operativo.
 Validar con `python -m pytest` y, cuando Docker esté disponible, `docker compose build`,
 `docker compose up -d --wait`, consultas a / y /health y `docker compose exec -T web python -m pytest`.
