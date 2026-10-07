@@ -9,8 +9,23 @@
 <body>
   <main>
     <h1>Sistema de Reporte de Lluvias e Inundaciones</h1>
-    <p>Fase inicial del sistema</p>
-    <p>Base técnica disponible. La generación de reportes se incorporará en fases posteriores.</p>
+    <p>Fase inicial del sistema — Fase 02: monitor de fuentes</p>
+    <h2>Estado de fuentes automáticas</h2>
+    <p>Horarios en {{ timezone }}. Sin análisis ni generación de reportes.</p>
+    {% if request.query_params.get('check') == 'busy' %}<p role="status">Ya hay una comprobación en curso.</p>{% endif %}
+    {% if request.query_params.get('check') == 'completed' %}<p role="status">Comprobación terminada. Consulta el estado por fuente.</p>{% endif %}
+    <form action="/sources/check" method="post"><button type="submit">Comprobar fuentes ahora</button></form>
+    <div class="table-scroll">
+    <table>
+      <thead><tr><th>Fuente</th><th>Organismo</th><th>Última comprobación</th><th>Última emisión detectada</th><th>Estado</th><th>Cambio detectado</th></tr></thead>
+      <tbody>{% for source in sources %}<tr>
+        <td>{{ source.name }}</td><td>{{ source.organization }}</td>
+        <td>{{ source.last_check | local_time }}</td><td>{{ source.detected_issue_time | local_time }}</td>
+        <td>{{ 'NO DISPONIBLE / OBSOLETA' if source.status == 'NO_DISPONIBLE_OBSOLETA' else source.status }}</td>
+        <td>{{ 'Sí' if source.changed_on_last_check else 'No' }}</td>
+      </tr>{% endfor %}</tbody>
+    </table>
+    </div>
   </main>
 </body>
 </html>

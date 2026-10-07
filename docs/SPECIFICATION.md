@@ -46,3 +46,25 @@ Configuración de entorno, persistencia de ./data, usuario no root y healthcheck
 Tests locales y en contenedor. No hay interfaz definitiva, datos simulados, scraping,
 llamadas OpenAI, procesamiento meteorológico, mapas o generación PowerPoint/reportes.
 La fase 02 requiere nueva instrucción tras revisión manual.
+
+
+## Fase 02 implementada
+
+Registro idempotente de las cuatro fuentes automáticas anteriores (sin GFS), conectores independientes
+httpx, contenido original sin análisis, checks históricos y snapshots SQLite/filesystem privados.
+SHA-256 y deduplicación por fuente; escritura atómica y referencia de DB. Metadatos desconocidos null.
+UTC aware internamente/API y America/Mexico_City en la tabla temporal de estados.
+Monitor automático con primer ciclo al iniciar e intervalo configurable (default 15 minutos),
+checks manuales globales/por clave y CLI explícita. Lock impide ciclos simultáneos; fallos aislados.
+
+ACTUALIZADA: último check exitoso produjo adquisición nueva respecto al snapshot anterior.
+VIGENTE: éxito sin cambio, o snapshot utilizable tras fallo con último éxito reciente.
+NO_DISPONIBLE_OBSOLETA: falta snapshot local utilizable o último éxito supera umbral por fuente.
+SOURCE_MAX_AGE_HOURS define un umbral operativo inicial de 24h por fuente; no equivale a
+validez meteorológica. Umbrales exactos pendientes de refinamiento. Validity_start/end no se infieren.
+
+API: GET /api/sources, GET /api/sources/{key}, POST /api/sources/check,
+POST /api/sources/{key}/check y GET /api/sources/{key}/snapshots.
+Tabla temporal y botón de check manual. No rutas arbitrarias, no data como static.
+Fase 02 completada en implementación; acceso real bloqueado según DATA_SOURCES.md.
+FASE 03 no iniciada: siguen fuera SEMAR, OpenAI, análisis, GFS, mapas, riesgo, infografía y PPTX.
