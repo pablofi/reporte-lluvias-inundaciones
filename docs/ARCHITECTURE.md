@@ -41,6 +41,38 @@ no se acepta URL del frontend. Timeout, tamaño máximo 20 MiB/recurso, hasta 30
 Datos originales privados: no se montan como static ni se publica storage_path en API.
 Logs por fuente sin cuerpos ni mensajes de proxy con posibles secretos.
 API devuelve UTC; HTML convierte a America/Mexico_City con meses españoles.
-Snapshot VIGENTE tras fallo solo si último éxito reciente según configuración; no es validación
+Snapshot VIGENTE tras fallo solo si el producto es reciente según emisión o fetched_at; no es validación
 meteorológica ni verificación de autenticidad científica. Umbral provisional 24h por fuente.
 Las fases SEMAR, extracción/normalización meteorológica, OpenAI, riesgo, mapas, render y PPTX no se iniciaron.
+
+
+## Selección, identidad y antigüedad de productos SMN
+
+app/sources/smn.py selecciona el mínimo ámbito que contiene los marcadores del producto:
+Pronóstico Meteorológico General, No. Aviso, Emisión, Pronóstico de lluvias, Próxima emisión y
+Descargar en PDF cuando aparecen. No depende exclusivamente de article/item-page/articleBody;
+esos contenedores siguen siendo una alternativa conservadora. Navegación, footer, banners,
+scripts y estilos se descartan del contenido a comparar; el HTML recibido permanece intacto para auditoría.
+Si la firma del producto no se reconoce se registra el fallo, sin atribuirlo automáticamente a falta de navegador.
+
+La adquisición incluye product_text normalizado y wrapper_sha256 del HTML original. content_hash
+SMN v2 usa JSON canónico de texto específico y conjunto ordenado de SHA-256 de recursos binarios,
+sin URLs de envoltura ni HTML completo. Pronóstico usa texto del boletín + PDF/imágenes; tormentas
+usa imágenes/productos + emisión inequívoca. El texto usado queda en metadata_json para reproducibilidad.
+Un cambio solo de página no crea snapshot ni cambia el HTML ya archivado de esa versión.
+Los hashes anteriores se conservan como historia; al cambiar de estrategia puede generarse una
+representación canónica vinculada al registro anterior. Se compara el producto reconstruido desde
+el archivo antiguo: si es equivalente, changed=false y fetched_at original se conserva; no se borran
+ni reescriben archivos históricos. Si no puede reconstruirse con seguridad no se presume equivalencia.
+
+Emisión SMN: fecha española con mes nominal/año y hora rotulada Emisión; si fecha/hora no son
+inequívocas quedan null. Hora local America/Mexico_City → UTC; UTC/GMT explícitos se respetan.
+Se excluye Próxima emisión del análisis de fecha actual; fechas/horas contradictorias, fechas inválidas,
+abreviaturas horarias ambiguas y horas locales DST ambiguas/no existentes no se infieren.
+Se mantiene time[datetime] con zona explícita y se comprueban contradicciones con texto.
+
+status_for usa snapshot.detected_issue_time, o snapshot.fetched_at cuando no hay emisión.
+La última comprobación exitosa no renueva el producto, ni siquiera HTTP 200/304 sin cambio.
+source_max_age_hours por fuente sigue siendo operativo provisional. Solo smn_pronostico_general
+es principal. La inicialización corrige is_primary en registros existentes, preservando enabled,
+URL y demás configuración y sin duplicar fuentes.

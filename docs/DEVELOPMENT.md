@@ -48,7 +48,13 @@ Dockerfile usa un secreto BuildKit opcional pip_ca; no lo copia a la imagen. El 
 su proxy/CA igualmente cuando la red lo exige. Mantener TLS verificado. No versionar datos de
 proxy ni rutas del entorno. En WSL/Ubuntu con red normal usar Compose estándar del README.
 
-Umbral SOURCE_MAX_AGE_HOURS por clave: reutilización desde el último éxito, no validez científica.
+Umbral SOURCE_MAX_AGE_HOURS por clave: edad desde detected_issue_time o fetched_at, no validez científica.
 Modificar esos umbrales requiere revisión operativa. Creación de tablas automática encapsulada;
 las migraciones de cambios futuros deberán ser explícitas. No implementar retención ni borrar
 snapshots para hacer pasar tests.
+
+
+Fixtures SMN de tests/fixtures son representaciones sintéticas de los marcadores y nombres
+reportados en WSL, no copias del HTML oficial vigente. Prueban selección sin article, PDF,
+fechas españolas inequívocas, hash de producto y antigüedad. Repetir la CLI real en WSL tras
+esta corrección; los rechazos de Codex cloud no sustituyen esa validación.

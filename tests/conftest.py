@@ -37,7 +37,10 @@ def official_fixture(request):
         return httpx.Response(200, text=f"<pre>{product}\n1205 UTC Wed Oct 07 2026\n</pre>", headers={"etag": '"fixture-1"'})
     if request.url.path.endswith(".png"):
         return httpx.Response(200, content=b"\x89PNG\r\n\x1a\nfixture", headers={"content-type": "image/png"})
-    return httpx.Response(200, text='<article><img src="/fixture.png"></article>', headers={"content-type": "text/html"})
+    text = '<article><img src="/fixture.png"></article>'
+    if "pronostico-meteorologico-general" in request.url.path:
+        text = '<article><h1>Pronóstico Meteorológico General</h1><p>No. Aviso: fixture</p><p>Emisión: 12:00</p><img src="/fixture.png"></article>'
+    return httpx.Response(200, text=text, headers={"content-type": "text/html"})
 
 
 @pytest.fixture

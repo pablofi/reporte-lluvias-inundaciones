@@ -9,7 +9,7 @@ import httpx
 from sqlalchemy import select
 
 from app.models.sources import Source, SourceCheck, SourceSnapshot, SourceStatus, utcnow
-from app.services.storage import content_hash, snapshot_usable, store_snapshot
+from app.services.storage import content_hash, legacy_smn_product_hash, snapshot_usable, store_snapshot
 from app.sources.connectors import CONNECTORS
 from app.sources.http import AcquisitionError, Transport
 from app.sources.registry import initialize_sources
@@ -40,7 +40,8 @@ def status_for(session, source, settings, now=None):
     age = settings.source_max_age_hours.get(source.key, 24)
     if not snapshot or not snapshot_usable(snapshot) or not success:
         return SourceStatus.NO_DISPONIBLE_OBSOLETA
-    if (now or utcnow()) - success.checked_at > timedelta(hours=age):
+    reference_time = snapshot.detected_issue_time or snapshot.fetched_at
+    if (now or utcnow()) - reference_time > timedelta(hours=age):
         return SourceStatus.NO_DISPONIBLE_OBSOLETA
     if check and check.success and check.changed:
         return SourceStatus.ACTUALIZADA
@@ -107,13 +108,25 @@ class Monitor:
                         snapshot = current
                     else:
                         digest = content_hash(acquisition)
-                        check.changed = current is None or current.content_hash != digest
+                        previous_digest = current.content_hash if current else None
+                        canonical_transition = False
+                        if (current and acquisition.product_text is not None and snapshot_usable(current)
+                                and current.metadata_json.get("content_hash_strategy") != "smn_product_v2"):
+                            comparable = legacy_smn_product_hash(current, storms=source.source_type == "smn_storms")
+                            if comparable is not None:
+                                previous_digest = comparable
+                                canonical_transition = comparable == digest
+                        check.changed = previous_digest != digest
                         snapshot = session.scalar(select(SourceSnapshot).where(SourceSnapshot.source_id == source.id,
                                                                                  SourceSnapshot.content_hash == digest))
                         if snapshot is None:
+                            fetched_at = current.fetched_at if canonical_transition else check.checked_at
+                            if canonical_transition:
+                                acquisition.metadata["canonicalized_from_snapshot_id"] = current.id
+                                acquisition.metadata["canonicalized_at"] = check.checked_at.isoformat()
                             path, metadata = store_snapshot(Path(self.settings.source_storage_dir), source.key,
-                                                            check.checked_at, digest, acquisition)
-                            snapshot = SourceSnapshot(source_id=source.id, fetched_at=check.checked_at,
+                                                            fetched_at, digest, acquisition)
+                            snapshot = SourceSnapshot(source_id=source.id, fetched_at=fetched_at,
                                 detected_issue_time=acquisition.issue_time, content_hash=digest,
                                 content_type=acquisition.content_type, original_filename=None,
                                 storage_path=path, source_url=acquisition.source_url, metadata_json=metadata)

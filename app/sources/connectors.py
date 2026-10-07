@@ -3,9 +3,10 @@ from datetime import datetime, timezone
 from html.parser import HTMLParser
 import re
 import hashlib
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urlsplit
 
-from app.sources.http import AcquisitionError, validate_url
+from app.sources.http import AcquisitionError
+from app.sources.smn import normalize_text, official_resource_urls, select_product, smn_issue_time
 
 
 @dataclass
@@ -27,6 +28,7 @@ class Acquisition:
     resources: list[Resource] = field(default_factory=list)
     metadata: dict = field(default_factory=dict)
     not_modified: bool = False
+    product_text: str | None = None
 
 
 class ProductParser(HTMLParser):
@@ -135,21 +137,11 @@ class SMNConnector(Connector):
     async def acquire(self, transport, source, previous=None):
         # Re-fetch resources even if page/ETag did not change: PDFs/images may be overwritten in place.
         response = await transport.get(source.url)
-        parser = ProductParser()
-        parser.feed(response.text)
-        if not parser.found_content:
-            raise AcquisitionError("Contenido editorial SMN no identificable sin navegador", response.status_code)
-        urls = set()
-        for target in parser.resources:
-            url = urljoin(str(response.url), target)
-            suffix = urlsplit(url).path.lower()
-            if suffix.endswith((".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp")):
-                try:
-                    validate_url(url)
-                except AcquisitionError:
-                    continue
-                if urlsplit(url).hostname == "smn.conagua.gob.mx":
-                    urls.add(url)
+        try:
+            product = select_product(response.text, storms=self.require_images)
+        except ValueError as exc:
+            raise AcquisitionError(str(exc), response.status_code) from exc
+        urls = official_resource_urls(product, str(response.url))
         if self.require_images and not any(urlsplit(u).path.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".webp")) for u in urls):
             raise AcquisitionError("No se localizaron imágenes oficiales en el contenido SMN", response.status_code)
         if len(urls) > 30:
@@ -161,11 +153,19 @@ class SMNConnector(Connector):
             if not (kind.startswith("image/") or kind.split(";")[0] == "application/pdf"):
                 raise AcquisitionError("Tipo inesperado del recurso SMN", asset.status_code)
             resources.append(Resource(url, asset.content, kind))
+        issue_time = smn_issue_time(product)
+        product_text = normalize_text(product.text)
+        if self.require_images:
+            # Storm products are the image set, plus unambiguous issuance metadata.
+            # Unrelated page prose must never produce an image-product update.
+            product_text = issue_time.isoformat() if issue_time else ""
         return Acquisition(response.content, response.headers.get("content-type", "text/html"), str(response.url),
                            response.status_code, response.headers.get("etag"), response.headers.get("last-modified"),
-                           issue_time=parser.issue_times[0] if len(set(parser.issue_times)) == 1 else None,
+                           issue_time=issue_time, product_text=product_text,
                            resources=resources, metadata={"method": "official_html_and_linked_resources",
-                           "issue_time_note": "Solo time[datetime] con zona explícita y un valor único en el artículo; otras fechas no se infieren"})
+                           "selection": product.method, "content_hash_strategy": "smn_product_v2",
+                           "wrapper_sha256": hashlib.sha256(response.content).hexdigest(),
+                           "issue_time_note": "Fecha/emisión inequívocas del producto; hora local America/Mexico_City o zona explícita"})
 
 
 CONNECTORS = {

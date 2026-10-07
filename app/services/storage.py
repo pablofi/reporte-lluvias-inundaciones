@@ -7,6 +7,11 @@ from urllib.parse import urlsplit
 
 
 def content_hash(acquisition):
+    if acquisition.product_text is not None:
+        manifest = {"strategy": "smn_product_v2", "text": acquisition.product_text,
+                    "resources": sorted({hashlib.sha256(r.content).hexdigest() for r in acquisition.resources})}
+        return hashlib.sha256(json.dumps(manifest, ensure_ascii=False, sort_keys=True,
+                                         separators=(",", ":")).encode("utf-8")).hexdigest()
     # Text product hash is the exact stored UTF-8 bytes. Bundles include URLs and raw resource hashes.
     if not acquisition.resources:
         return hashlib.sha256(acquisition.content).hexdigest()
@@ -33,6 +38,8 @@ def store_snapshot(root, key, now, digest, acquisition):
     primary = folder / ("original.txt" if acquisition.content_type.startswith("text/plain") else "original.html")
     atomic_write(primary, acquisition.content)
     metadata = dict(acquisition.metadata)
+    if acquisition.product_text is not None:
+        metadata["normalized_product_text"] = acquisition.product_text
     metadata.update(content_hash=digest, fetched_at=now.isoformat(), source_url=acquisition.source_url,
                     detected_issue_time=acquisition.issue_time.isoformat() if acquisition.issue_time else None,
                     primary_sha256=hashlib.sha256(acquisition.content).hexdigest(), resources=[])
@@ -66,3 +73,30 @@ def snapshot_usable(snapshot):
         return True
     except OSError:
         return False
+
+
+def legacy_smn_product_hash(snapshot, storms=False):
+    """Compare a retained v1 archive with v2 without modifying historical files."""
+    import httpx
+    from app.sources.connectors import Acquisition, Resource
+    from app.sources.smn import normalize_text, official_resource_urls, select_product, smn_issue_time
+
+    try:
+        body = Path(snapshot.storage_path).read_bytes()
+        html = httpx.Response(200, content=body, headers={"content-type": snapshot.content_type}).text
+        product = select_product(html, storms=storms)
+        metadata = snapshot.metadata_json or {}
+        archived = {item["url"]: item for item in metadata.get("resources", [])}
+        resources = []
+        for url in sorted(official_resource_urls(product, snapshot.source_url)):
+            item = archived.get(url)
+            if item:
+                resources.append(Resource(url, (Path(snapshot.storage_path).parent / item["filename"]).read_bytes(), item["content_type"]))
+            else:
+                return None  # Cannot prove equivalence without the associated archived resource.
+        issue = smn_issue_time(product)
+        text = (issue.isoformat() if issue else "") if storms else normalize_text(product.text)
+        return content_hash(Acquisition(body, snapshot.content_type, snapshot.source_url, 200,
+                                        resources=resources, product_text=text))
+    except (OSError, ValueError, KeyError):
+        return None

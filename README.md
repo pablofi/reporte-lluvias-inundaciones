@@ -55,16 +55,21 @@ La tabla temporal muestra fuentes, comprobación, emisión detectada, estado y c
 
 .env.example recoge todas las variables. No se requieren claves; OPENAI_API_KEY y OPENAI_MODEL
 siguen reservadas y no se utilizan. SECRETOS no se versionan ni se entregan al frontend.
-SOURCE_MAX_AGE_HOURS configura por clave la reutilización desde la última comprobación exitosa;
+SOURCE_MAX_AGE_HOURS configura por clave la edad desde detected_issue_time o, si falta, fetched_at;
 default 24 horas operativo provisional, sin afirmar vigencia meteorológica. Emisiones y vigencias
 desconocidas quedan null. UTC aware en almacenamiento/API; America/Mexico_City en HTML.
 
 - ACTUALIZADA: última comprobación exitosa con contenido diferente al snapshot anterior.
 - VIGENTE: éxito sin cambio o snapshot reutilizable tras fallo dentro del umbral configurado.
-- NO_DISPONIBLE_OBSOLETA: sin snapshot local utilizable o último éxito fuera del umbral.
+- NO_DISPONIBLE_OBSOLETA: sin snapshot local utilizable o producto fuera del umbral.
 
-SHA-256 usa bytes exactos de texto NHC extraído; en SMN incluye página original y hashes/URLs
-de recursos oficiales asociados. Puede reflejar cambios editoriales de la página, sin interpretar pronósticos.
+SHA-256 usa bytes exactos de texto NHC extraído. En SMN compara el producto: texto normalizado del
+Pronóstico General y hashes binarios de sus recursos; para tormentas, conjunto ordenado de hashes
+de imágenes/productos y emisión inequívoca cuando existe. Navbar/footer/banners no son parte del hash.
+El HTML original de la primera adquisición de cada versión se conserva y wrapper_sha256 es auditoría.
+La estrategia smn_product_v2 sustituye al hash de envoltura anterior; los snapshots históricos se conservan
+sin reescribirlos. La primera adquisición puede crear una representación canónica vinculada al snapshot anterior;
+si el archivo permite demostrar equivalencia, changed permanece false y fetched_at no se renueva.
 La misma adquisición no crea otro snapshot; una versión reaparecida también reutiliza el archivo existente.
 
 ## Desarrollo local
@@ -97,6 +102,11 @@ Para reload: `python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 Consultar docs/DATA_SOURCES.md para URLs, formatos y limitaciones. La red de esta nube requiere
 override de proxy/DNS/CA externo al checkout; no desactivar TLS. Dockerfile admite CA BuildKit
 opcional pip_ca, sin copiarla a la imagen. WSL/Ubuntu con red normal usa Compose estándar.
-SMN/NHC pueden bloquear acceso real; queda registrado como fallo, nunca como contenido válido inventado.
+Las restricciones de esta nube no representan WSL: el usuario verificó HTTP 200 para las cuatro URLs,
+descarga de las cinco imágenes de tormentas y emisiones NHC. El Pronóstico General fallaba al depender
+del contenedor HTML; ahora se reconoce por marcadores propios y se detecta el PDF enlazado.
+La corrección está validada offline; **la validación real definitiva debe repetirse en WSL**.
+Solo Pronóstico General es is_primary=true; tormentas/NHC son complementarias. Un HTTP 200 o 304
+repetido no rejuvenece la emisión/fetched_at del snapshot.
 Sin autenticación: usar solo en entorno interno, sin exposición pública.
 No hay SEMAR uploads, OpenAI, análisis/riesgo, GFS, cartografía, infografía, PPTX ni interfaz definitiva.

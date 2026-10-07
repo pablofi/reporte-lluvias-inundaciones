@@ -1,6 +1,6 @@
 from sqlalchemy.dialects.sqlite import insert
 
-from app.models.sources import Source
+from app.models.sources import Source, utcnow
 
 SOURCES = (
     ("smn_pronostico_general", "Pronóstico Meteorológico General", "CONAGUA/SMN", "smn_general", "https://smn.conagua.gob.mx/es/pronosticos/pronosticossubmenu/pronostico-meteorologico-general"),
@@ -14,6 +14,8 @@ def initialize_sources(session):
     # SQLite ON CONFLICT also makes simultaneous process initialization safe.
     for key, name, organization, source_type, url in SOURCES:
         session.execute(insert(Source).values(key=key, name=name, organization=organization,
-            source_type=source_type, url=url, is_primary=True, enabled=True)
-            .on_conflict_do_nothing(index_elements=["key"]))
+            source_type=source_type, url=url, is_primary=(key == "smn_pronostico_general"), enabled=True)
+            .on_conflict_do_update(index_elements=["key"],
+                set_={"is_primary": key == "smn_pronostico_general", "updated_at": utcnow()},
+                where=Source.is_primary != (key == "smn_pronostico_general")))
     session.commit()
